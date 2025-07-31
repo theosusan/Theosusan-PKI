@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dashboard - Theosusan-PKI</title>
+  
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+  
+  <link rel="stylesheet" href="/css/main.css" />
+</head>
+<body>
+  
+  <header class="fixed-header">
+    <div class="container-fluid d-flex justify-content-between align-items-center p-0">
+      <span class="navbar-brand mb-0 h5" style="color: #e0e0e0;">Theosusan-PKI</span>
+      <button id="logoutBtn" class="btn btn-danger btn-sm">Se déconnecter</button>
+    </div>
+  </header>
+  
+  <div class="d-flex" id="wrapper">
+    
+    <!-- Sidebar -->
+    <div id="sidebar" class="border-end">
+      <div class="list-group list-group-flush">
+        <a href="dashboard" class="list-group-item list-group-item-action text-white active">Dashboard</a>
+        <a href="keys" class="list-group-item list-group-item-action text-white">Clés SSH</a>
+        <a href="hosts" class="list-group-item list-group-item-action text-white">Hôtes</a>
+        <a href="rules" class="list-group-item list-group-item-action text-white">Règles</a>
+      </div>
+    </div>
+    <!-- /#sidebar -->
+    
+    <!-- Page Content -->
+    <div id="page-content-wrapper" class="w-100 p-4">
+      <h2>Tableau de bord - Theosusan-PKI</h2>
+      <h3>Actions</h3>
+      
+      <button id="showKeyBtn" class="btn btn-secondary">Afficher la clé publique Bastion</button>
+      
+      <div id="keyDisplay" class="alert alert-secondary" style="display:none;">
+        <button id="closeKeyDisplay" type="button" class="btn-close" aria-label="Fermer"></button>
+        <div id="keyDisplayContent"></div>
+      </div>
+      
+      <div class="position-fixed top-0 end-0 p-3" style="z-index: 1080; margin-top: 56px; right: 1rem;">
+        <div id="liveToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+          <button type="button" class="btn-close toast-close-btn" data-bs-dismiss="toast" aria-label="Fermer"></button>
+          <div class="toast-body" id="toastBody">
+          </div>
+        </div>
+      </div>
+      <!-- /#page-content-wrapper -->
+      
+    </div>
+    <!-- /#wrapper -->
+    
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/js/main.js"></script>
+    
+    <script>
+      
+      // Affichage clé publique
+      document.getElementById('showKeyBtn').addEventListener('click', async () => {
+        const res = await fetch('/keys/bastion');
+        if (res.ok) {
+          const data = await res.json();
+          displayKey(data.publicKey || 'Clé introuvable', 'Bastion');
+        } else {
+          showToast("Erreur lors de la récupération", false);
+        }
+      });
+
+      setupCloseKeyDisplay(); //Bouton X pour fermer l'affichage des clés
+      setupLogoutButton(); // Bouton déconnection
+      
+    </script>
+    
+  </body>
+  </html>

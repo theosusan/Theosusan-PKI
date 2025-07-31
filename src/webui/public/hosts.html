@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hôtes</title>
+  
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/main.css" />
+  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css" />
+</head>
+<body>
+  
+  <header class="fixed-header">
+    <div class="container-fluid d-flex justify-content-between align-items-center p-0">
+      <span class="navbar-brand mb-0 h5" style="color: #e0e0e0;">Theosusan-PKI</span>
+      <button id="logoutBtn" class="btn btn-danger btn-sm">Se déconnecter</button>
+    </div>
+  </header>
+  
+  <div class="d-flex" id="wrapper">
+    
+    <!-- Sidebar -->
+    <div id="sidebar" class="border-end">
+      <div class="list-group list-group-flush">
+        <a href="dashboard" class="list-group-item list-group-item-action text-white">Dashboard</a>
+        <a href="keys" class="list-group-item list-group-item-action text-white">Clés SSH</a>
+        <a href="hosts" class="list-group-item list-group-item-action text-white active">Hôtes</a>
+        <a href="rules" class="list-group-item list-group-item-action text-white">Règles</a>
+      </div>
+    </div>
+    <!-- /#sidebar -->
+    <!-- Page Content -->
+    <div id="page-content-wrapper" class="w-100 p-4">
+      
+      <h2 class="mb-4">Ajouter un nouvel hôte</h2>
+      <form id="hostForm" class="mb-4">
+        <div class="row g-3">
+          <div class="col-md-3">
+            <label for="hostname" class="form-label">Nom de l'hôte :</label>
+            <input type="text" id="hostname" name="hostname" required class="form-control" />
+          </div>
+          
+          <div class="col-md-2">
+            <label for="user" class="form-label">User :</label>
+            <input type="text" id="user" name="user" required class="form-control" />
+          </div>
+          
+          <div class="col-md-3">
+            <label for="address" class="form-label">Adresse :</label>
+            <input type="text" id="address" name="address" required class="form-control" />
+          </div>
+          
+          <div class="col-md-2">
+            <label for="port" class="form-label">Port :</label>
+            <input type="number" id="port" name="port" min="1" max="65535" placeholder="22" class="form-control" />
+          </div>
+          
+          <div class="col-md-2 d-flex align-items-end">
+            <button type="submit" class="btn btn-primary w-100">Ajouter</button>
+          </div>
+        </div>
+      </form>
+      
+      <h3>Liste des hôtes</h3>
+      <table id="hostsTable" class="table table-dark table-striped table-bordered"></table>
+      
+    </div>
+  </div>
+  
+  <div class="position-fixed top-0 end-0 p-3" style="z-index: 1080; margin-top: 56px; right: 1rem;">
+    <div id="liveToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+      <button type="button" class="btn-close toast-close-btn" data-bs-dismiss="toast" aria-label="Fermer"></button>
+      <div class="toast-body" id="toastBody">
+      </div>
+    </div>
+  </div>
+  
+  <!-- Bootstrap & DataTables JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+  <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+  
+  <script src="/js/main.js"></script>
+  
+  <script>
+    let dataTable;
+    
+    document.getElementById('hostForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const hostname = document.getElementById('hostname').value;
+      const user = document.getElementById('user').value;
+      const address = document.getElementById('address').value;
+      const port = document.getElementById('port').value || '22';
+      
+      try {
+        const response = await fetch('/hosts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: `hostname=${encodeURIComponent(hostname)}&user=${encodeURIComponent(user)}&address=${encodeURIComponent(address)}&port=${encodeURIComponent(port)}`
+        });
+        
+        const text = await response.text();
+        
+        if (response.ok) {
+          showToast(text || 'Hôte ajouté avec succès !', true);
+          e.target.reset();
+          fetchHosts();
+        } else {
+          showToast(text || 'Erreur lors de l’ajout.', false);
+        }
+      } catch (err) {
+        console.error(err);
+        showToast('Erreur lors de la génération.', false);
+      }
+    });
+    
+    async function fetchHosts() {
+      try {
+        const response = await fetch('/hosts/list');
+        if (!response.ok) throw new Error('Erreur chargement hôtes');
+        
+        const hosts = await response.json();
+        
+        const rows = hosts.map(host => {
+          const formattedLastsync = formatDate(host.lastsync);
+          const syncBtn = `<button class="btn btn-sm btn-secondary ms-2" onclick="syncHost(${host.id})">Synchroniser</button>`;
+          const deleteBtn = `<button class="btn btn-sm btn-danger" onclick="deleteHost(${host.id}, '${host.hostname}')">Supprimer</button>`;
+          
+          return [
+          host.hostname,
+          host.user,
+          host.address,
+          host.port,
+          `${formattedLastsync} ${syncBtn}`,
+          deleteBtn
+          ];
+        });
+        
+        dataTable.clear().rows.add(rows).draw();
+      } catch (err) {
+        console.error(err);
+        showToast('Erreur lors du chargement des hôtes.', false);
+      }
+    }
+    
+    async function syncHost(id) {
+      try {
+        const tr = [...document.querySelectorAll('#hostsTable tbody tr')]
+        .find(row => row.querySelector('button.btn-danger').getAttribute('onclick').includes(`deleteHost(${id},`));
+        
+        if (!tr) {
+          showToast('Hôte introuvable dans la table.', false);
+          return;
+        }
+        
+        const hostname = tr.children[0].textContent;
+        const user = tr.children[1].textContent;
+        const address = tr.children[2].textContent;
+        const port = tr.children[3].textContent || '22';
+        
+        const response = await fetch('/hosts/connect', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id,
+            host: address,
+            port: Number(port),
+            username: user,
+          }),
+        });
+        
+        const text = await response.text();
+        
+        if (response.ok) {
+          const now = new Date().toLocaleString();
+          tr.children[4].childNodes[0].nodeValue = now; // update texte sans toucher au bouton
+          
+          showToast(text || `Synchronisation réussie pour ${address}`, true);
+        } else {
+          showToast(text || `Erreur synchronisation pour ${address} : ${text}`, false);
+        }
+      } catch (err) {
+        console.error(err);
+        showToast('Erreur lors de la synchronisation.', false);
+      }
+    }
+    
+    async function deleteHost(id, hostname) {
+      if (!confirm(`Supprimer l'hôte "${hostname}" ?`)) return;
+      
+      try {
+        const response = await fetch(`/hosts/${id}`, { method: 'DELETE' });
+        const text = await response.text();
+        
+        if (response.ok) {
+          showToast(text, true);
+          fetchHosts();
+        } else {
+          showToast(`Erreur : ${text}`, false);
+        }
+      } catch (err) {
+        console.error(err);
+        showToast('Une erreur est survenue lors de la suppression.', false);
+      }
+    }
+    
+    window.addEventListener('load', async () => {
+      dataTable = $('#hostsTable').DataTable({
+        pageLength: 10,
+        lengthMenu: [10, 25, 50],
+        language: {
+          decimal: ",",
+          thousands: " ",
+          lengthMenu: "Afficher _MENU_ entrées",
+          zeroRecords: "Aucune donnée trouvée",
+          info: "Affichage de _START_ à _END_ sur _TOTAL_ entrées",
+          infoEmpty: "Aucune entrée à afficher",
+          infoFiltered: "(filtré sur _MAX_ entrées au total)",
+          search: "Rechercher :",
+          paginate: {
+            first: "Premier",
+            last: "Dernier",
+            next: "Suivant",
+            previous: "Précédent"
+          }
+        },
+        data: [],
+        columns: [
+        { title: "Nom" },
+        { title: "User" },
+        { title: "Adresse" },
+        { title: "Port" },
+        { title: "Dernière synchronisation" },
+        { title: "Action" }
+        ]
+      });
+      
+      await fetchHosts();
+    });
+
+    setupLogoutButton(); // Bouton déconnection
+  </script>
+  
+</body>
+</html>
