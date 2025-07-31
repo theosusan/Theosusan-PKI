@@ -5,3 +5,5 @@ commit.sh
 build.sh
 run.sh
 stop.sh
+.gitignore
+.dockerignore
