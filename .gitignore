@@ -1,9 +1,0 @@
-.env
-node_modules
-package-lock.json
-commit.sh
-build.sh
-run.sh
-stop.sh
-.gitignore
-.dockerignore
