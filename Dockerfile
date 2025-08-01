@@ -1,7 +1,7 @@
 FROM node:lts-slim
 
 RUN apt-get update \
-    && apt-get install -y locales locales-all
+    && apt-get install -y locales locales-all openssh-client
 
 COPY src /scripts/src
 COPY startup.sh /scripts
@@ -15,7 +15,8 @@ ENV LOG_LEVEL=info
 
 WORKDIR /scripts
 
-RUN npm install
+RUN npm install \
+    && chown -R 1000:1000 /scripts
 
 EXPOSE 3000
 

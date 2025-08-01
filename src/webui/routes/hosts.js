@@ -134,7 +134,6 @@ router.post('/connect', requireAuth, async (req, res) => {
     const tmpFilePath = path.join('/tmp', tmpFilename);
     fs.writeFileSync(tmpFilePath, allKeys, { encoding: 'utf8' });
     
-    const remoteFilePath = `/home/${username}/.ssh/${tmpFilename}`;
     await installSSHFile({
       host,
       port: sshPort,
@@ -189,7 +188,9 @@ async function checkRemoteScriptPresence(conn, username) {
 }
 
 async function runRemoteUpdateScript({ host, port, username, privateKey }) {
-  const remotePath = `/home/${username}/.ssh/update_keys.sh`;
+  const remotePath = username === "root"
+  ? "/root/.ssh/update_keys.sh"
+  : `/home/${username}/.ssh/update_keys.sh`;
   const command = `${remotePath} update ${username}`;
   const conn = await connectSSH({ host, port, username, privateKey });
   

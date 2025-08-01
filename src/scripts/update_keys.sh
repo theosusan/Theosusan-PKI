@@ -9,9 +9,17 @@ fi
 # argument assignments.
 ACTION=$1          # actions: update, uninstall
 USER=$2
-AUTHORIZED_KEYS="/home/${USER}/.ssh/authorized_keys"
-NON_THEOSUSAN_PKI_FILE="/home/${USER}/.ssh/authorized_keys.non_theosusan-pki"
-THEOSUSAN_PKI_FILE="/home/${USER}/.ssh/authorized_keys.theosusan-pki"
+
+# définir le répertoire .ssh selon si l'utilisateur est root ou non
+if [ "$USER" = "root" ]; then
+    SSH_DIR="/root/.ssh"
+else
+    SSH_DIR="/home/${USER}/.ssh"
+fi
+
+AUTHORIZED_KEYS="${SSH_DIR}/authorized_keys"
+NON_THEOSUSAN_PKI_FILE="${SSH_DIR}/authorized_keys.non_theosusan-pki"
+THEOSUSAN_PKI_FILE="${SSH_DIR}/authorized_keys.theosusan-pki"
 
 # Check if THEOSUSAN_PKI_FILE exists
 if [ ! -f "${THEOSUSAN_PKI_FILE}" ]; then
