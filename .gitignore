@@ -8,3 +8,4 @@ stop.sh
 push.sh
 .gitignore
 .dockerignore
+todo.txt

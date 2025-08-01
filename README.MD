@@ -77,6 +77,7 @@ Après le premier login, récupérer la clé publique de bastion sur le dashboar
         │   ├── css
         │   │   └── main.css
         │   ├── dashboard.html
+        │   ├── favicon.ico
         │   ├── hosts.html
         │   ├── js
         │   │   └── main.js

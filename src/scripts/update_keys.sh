@@ -33,7 +33,7 @@ if [ ! -s "${NON_THEOSUSAN_PKI_FILE}" ]; then
     cp -f "${AUTHORIZED_KEYS}" "${NON_THEOSUSAN_PKI_FILE}"
     sort "${AUTHORIZED_KEYS}" -o "${AUTHORIZED_KEYS}"
     sort "${THEOSUSAN_PKI_FILE}" -o "${THEOSUSAN_PKI_FILE}"
-    comm -2 -3 "${AUTHORIZED_KEYS}" "${THEOSUSAN_PKI_FILE}" > "${NON_THEOSUSAN_PKI_FILE}"
+    grep -F -x -v -f "${THEOSUSAN_PKI_FILE}" "${AUTHORIZED_KEYS}" > "${NON_THEOSUSAN_PKI_FILE}"
 fi
 
 if [ "${ACTION}" = "uninstall" ]; then
