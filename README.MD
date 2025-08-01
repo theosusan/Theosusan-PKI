@@ -1,39 +1,60 @@
-Gestion de clés SSH
-
-Generation de paires au format ed25519
-Ajout d'hosts
-Règles pour associer des clés aux hosts
-
-Bouton de synchronisation pour déployer
-
-Différents types de logs : info / verbose / trace
+# Gestion de clés SSH
 
 
-Installation :
 
-Necessite une bdd mariadb/mysql
+- Génération de paires de clés au format ed25519  
+- Ajout et gestion des hosts  
+- Règles pour associer des clés SSH aux hosts  
+- Bouton de synchronisation pour déployer les clés sur les hosts  
+- Différents types de logs : info / verbose / trace  
 
-créer un .env (partir de .env_exemple)
 
-execution : npm install puis npm start
+### 30% codé par moi, 70% par chatgpt
 
-Url : localhost:3000
 
-login par défaut = admin/admin
-Pour le moment il n'est pas possible de créer d'user ou de le changer, préferer l'oidc
+
+## Installation :
+
+
+
+1. Nécessite une bdd mariadb/mysql
+
+2. Copier le fichier `.env_exemple` en `.env` et adapter la configuration 
+
+
+3. Exécuter :
+```bash
+  npm install
+  npm start
+```
+
+4. Url : localhost:3000
+
+5. login par défaut = admin/admin
+
+- Pour plus de sécurité, mettre l'app derrière un reverse-proxy comme Nginx
+
+- Pour le moment il n'est pas possible de créer d'user ou de le changer, préferer l'oidc
+
+
+## Utilsation
 
 Après le premier login, récupérer la clé publique de bastion sur le dashboard et l'ajouter manuellement aux authorized_keys des hosts.
 
-
-Dockerfile soon
-
-
-30% codé par moi, 70% par chatgpt
+![dashboard](https://raw.githubusercontent.com/theosusan/Theosusan-PKI/refs/heads/main/screen1.png)
 
 
 
-TREE :
+## Roadmap
 
+- Dockerfile soon
+- Gestion des users locaux
+- Ui plus propre
+
+
+## Tree
+
+```bash
 └── src
     ├── cli
     │   ├── manage_hosts.js
@@ -53,9 +74,11 @@ TREE :
     └── webui
         ├── public
         │   ├── css
+        │   │   └── main.css
         │   ├── dashboard.html
         │   ├── hosts.html
         │   ├── js
+        │   │   └── main.js
         │   ├── keys.html
         │   ├── login.ejs
         │   ├── robots.txt
@@ -67,3 +90,4 @@ TREE :
         │   ├── keys.js
         │   └── rules.js
         └── server.js
+```
