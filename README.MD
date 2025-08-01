@@ -36,6 +36,8 @@
 
 - Pour le moment il n'est pas possible de créer d'user ou de le changer, préferer l'oidc
 
+6. [Image Docker](https://hub.docker.com/r/theosusan/theosusan-pki)
+
 
 ## Utilsation
 
@@ -47,7 +49,6 @@ Après le premier login, récupérer la clé publique de bastion sur le dashboar
 
 ## Roadmap
 
-- Dockerfile soon
 - Gestion des users locaux
 - Ui plus propre
 
