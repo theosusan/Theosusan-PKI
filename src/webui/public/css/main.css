@@ -166,6 +166,10 @@ button.btn-success:hover {
   padding: 0 1rem;
 }
 
+.fixed-header .navbar-brand {
+  color: #e0e0e0;
+}
+
 h1, h3 {
   color: rgb(144, 202, 249);
 }
@@ -287,6 +291,12 @@ select.form-select:focus {
   z-index: 1051;
 }
 
+.toast-region {
+  z-index: 1080;
+  margin-top: 56px;
+  right: 1rem;
+}
+
 #authentik {
   border:none;
   background:#a80a0a;
@@ -341,5 +351,25 @@ select.form-select:focus {
   display: flex;
   justify-content: flex-end;
   gap: 0.5rem;
+}
+
+#keysDataTable {
+  table-layout: fixed;
+}
+
+#keysDataTable th:first-child,
+#keysDataTable td.key-select-cell {
+  width: 70px;
+}
+
+#keysDataTable td.key-select-cell {
+  text-align: center;
+  vertical-align: middle;
+}
+
+#keysDataTable .key-name-cell {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
