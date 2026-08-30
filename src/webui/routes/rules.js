@@ -108,6 +108,7 @@ router.get(
 router.get(
     '/keys',
     requireAuth,
+    rulesReadLimiter,
     async (req, res) => {
         try {
             logVerbose(
