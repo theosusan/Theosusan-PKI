@@ -80,6 +80,12 @@
     
     <script>
       let dataTable;
+
+      function escapeJsSingleQuotedString(value) {
+        return String(value)
+          .replace(/\\/g, "\\\\")
+          .replace(/'/g, "\\'");
+      }
       
       document.getElementById('keyForm').addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -119,7 +125,7 @@
                               <button class="btn btn-sm btn-info" onclick="showPrivate('${key.id}', '${key.name.replace(/'/g, "\\'")}')">Afficher</button>
                               <button class="btn btn-sm btn-success" onclick="window.open('/keys/download/${key.id}', '_blank')">Télécharger</button>
                               </div>`;
-            const btnShowPublic = `<button class="btn btn-sm btn-primary" onclick="showPublic(\`${key.publicKey}\`, '${key.name.replace(/'/g, "\\'")}')">Afficher</button>`;
+            const btnShowPublic = `<button class="btn btn-sm btn-primary" onclick="showPublic(\`${key.publicKey}\`, '${escapeJsSingleQuotedString(key.name)}')">Afficher</button>`;
             const btnDelete = `<button class="btn btn-sm btn-danger" onclick="deleteKey('${key.id}', '${key.name}')">Supprimer</button>`;
             
             
