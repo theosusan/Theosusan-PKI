@@ -54,6 +54,7 @@ const hostReadLimiter = rateLimit({
 router.get(
     '/',
     requireAuth,
+    hostReadLimiter,
     async (req, res) => {
 
         logVerbose(
