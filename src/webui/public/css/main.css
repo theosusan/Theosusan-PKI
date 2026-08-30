@@ -281,7 +281,6 @@ select.form-select:focus {
 
 #liveToast {
   position: relative;
-  padding-top: 1.5rem; /* pour laisser de la place à la croix */
 }
 
 #liveToast .toast-close-btn {
