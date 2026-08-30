@@ -19,28 +19,32 @@ const __dirname = path.dirname(__filename);
 const OIDC_ISSUER_URL = process.env.OIDC_ISSUER_URL;
 const OIDC_CLIENT_ID = process.env.OIDC_CLIENT_ID;
 const OIDC_CLIENT_SECRET = process.env.OIDC_CLIENT_SECRET;
-const OIDC_REDIRECT_URI = 'https://theosusan-pki.theosusan.fr/oidc/callback';
+const OIDC_REDIRECT_URI = process.env.OIDC_REDIRECT_URI
+  || 'https://theosusan-pki.theosusan.fr/oidc/callback';
 
-let oidcClient;
-let issuer;
+let oidcClientPromise;
 
 const BASE_LOGIN_METHOD = process.env.BASE_LOGIN_METHOD === 'true';
 
-(async () => {
-  issuer = await Issuer.discover(OIDC_ISSUER_URL);
-  oidcClient = new issuer.Client({
-    client_id: OIDC_CLIENT_ID,
-    client_secret: OIDC_CLIENT_SECRET,
-    redirect_uris: [OIDC_REDIRECT_URI],
-    response_types: ['code'],
-  });
-})();
+function getOidcClient() {
+  if (!oidcClientPromise) {
+    oidcClientPromise = Issuer.discover(OIDC_ISSUER_URL).then((issuer) => {
+      return new issuer.Client({
+        client_id: OIDC_CLIENT_ID,
+        client_secret: OIDC_CLIENT_SECRET,
+        redirect_uris: [OIDC_REDIRECT_URI],
+        response_types: ['code'],
+      });
+    });
+  }
+  return oidcClientPromise;
+}
 
 // Route GET / (page login)
 router.get('/', (req, res) => {
   ejs.renderFile(path.join(__dirname, '../public/login.ejs'), { loginEnabled: BASE_LOGIN_METHOD }, (err, str) => {
     if (err) {
-      logError.error('Erreur template login:', err);
+      logError('Erreur template login:', err);
       res.status(500).send('Erreur serveur');
       return;
     }
@@ -107,30 +111,37 @@ if (BASE_LOGIN_METHOD) {
 
 // Route pour initier l'authentification OIDC
 router.get('/oidc/login', async (req, res) => {
-  const codeVerifier = generators.codeVerifier();
-  const codeChallenge = generators.codeChallenge(codeVerifier);
-  const state = generators.state(); // Génère un state aléatoire
-  req.session.codeVerifier = codeVerifier;
-  req.session.oidcState = state;   // Stocke le state en session
-  const url = oidcClient.authorizationUrl({
-    scope: 'openid profile email',
-    code_challenge: codeChallenge,
-    code_challenge_method: 'S256',
-    state, // Ajoute le state à la requête
-  });
-  res.redirect(url);
+  try {
+    const oidcClient = await getOidcClient();
+    const codeVerifier = generators.codeVerifier();
+    const codeChallenge = generators.codeChallenge(codeVerifier);
+    const state = generators.state();
+    req.session.codeVerifier = codeVerifier;
+    req.session.oidcState = state;
+    const url = oidcClient.authorizationUrl({
+      scope: 'openid profile email',
+      code_challenge: codeChallenge,
+      code_challenge_method: 'S256',
+      state,
+    });
+    res.redirect(url);
+  } catch (err) {
+    logError('OIDC login error:', err);
+    res.status(500).send('Erreur OIDC');
+  }
 });
 
 // Callback OIDC
 router.get('/oidc/callback', async (req, res) => {
-  const params = oidcClient.callbackParams(req);
-  const codeVerifier = req.session.codeVerifier;
-  const state = req.session.oidcState; // Récupère le state stocké
   try {
+    const oidcClient = await getOidcClient();
+    const params = oidcClient.callbackParams(req);
+    const codeVerifier = req.session.codeVerifier;
+    const state = req.session.oidcState;
     const tokenSet = await oidcClient.callback(
       OIDC_REDIRECT_URI,
       params,
-      { code_verifier: codeVerifier, state } // Passe le state attendu
+      { code_verifier: codeVerifier, state }
     );
     const userinfo = await oidcClient.userinfo(tokenSet.access_token);
     req.session.user = userinfo.name || userinfo.preferred_username || userinfo.email || userinfo.sub;

@@ -15,16 +15,28 @@ const port = 3000;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+app.set('trust proxy', 1);
+
 app.use(session({
   secret: process.env.SECRET_KEY,
   resave: false,
   saveUninitialized: false,
-  cookie: { secure: false } // true en prod HTTPS
+  cookie: {
+    httpOnly: true,
+    secure: process.env.COOKIE_SECURE === 'true',
+    sameSite: 'lax'
+  }
 }));
 
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));  // ../../public depuis webui/
+app.use((req, res, next) => {
+  if (/\.(html|ejs)$/i.test(req.path)) {
+    return res.redirect('/');
+  }
+  next();
+});
+app.use(express.static(path.join(__dirname, 'public'), { index: false }));
 
 app.use('/', authRoutes);
 app.use('/dashboard', dashboardRoutes);

@@ -30,8 +30,9 @@ export async function addHost({ hostname, user, address, port = 22, lastsync = n
     port,
     lastsync,
   });
-  
+
   logVerbose(`✅ Hôte '${hostname}' créé.`);
+  return { success: true, message: `Hôte '${hostname}' créé.` };
 }
 
 /**

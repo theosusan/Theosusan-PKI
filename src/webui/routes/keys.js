@@ -16,8 +16,14 @@ router.get('/', requireAuth, async (req, res) => {
   res.sendFile(path.join(__dirname, '../public/keys.html'));
 });
 
-router.post('/', async (req, res) => {
+router.post('/', requireAuth, async (req, res) => {
   const { name } = req.body;
+  if (!name || typeof name !== 'string' || !name.trim()) {
+    return res.status(400).send('Nom de clé requis');
+  }
+  if (name.trim().toLowerCase() === 'bastion') {
+    return res.status(400).send('Le nom « bastion » est réservé.');
+  }
   const comment = 'THEOSUSAN-PKI[' + name.toUpperCase() + ']';
   try {
     const result = await generateKey({ name, comment, checkExists: true });
@@ -76,7 +82,10 @@ router.delete('/:id', requireAuth, async (req, res) => {
       res.send(result.message);
     } else {
       logError(`Erreur suppression clé id=${id} : ${result.message}`);
-      res.status(result.message === 'Clé non trouvée.' ? 404 : 500).send(result.message);
+      const status = result.message === 'Clé non trouvée.' ? 404
+        : result.message.includes('bastion') ? 403
+        : 500;
+      res.status(status).send(result.message);
     }
   } catch (err) {
     logError(`❌ Exception lors de la suppression de la clé id=${id} :`, err);

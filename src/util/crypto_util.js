@@ -4,6 +4,10 @@ import bcrypt from 'bcrypt';
 
 dotenv.config();
 
+if (!process.env.SECRET_KEY) {
+  throw new Error('SECRET_KEY manquante');
+}
+
 const algorithm = 'aes-256-gcm';
 const key = crypto.createHash('sha256').update(process.env.SECRET_KEY).digest();
 

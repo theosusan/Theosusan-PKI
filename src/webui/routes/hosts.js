@@ -6,7 +6,7 @@ import db from '../../db/db.js';
 import { requireAuth } from '../server.js';
 import { addHost, deleteHostById } from '../../cli/manage_hosts.js';
 import { logError, logVerbose } from '../../util/log_helper.js';
-import { connectSSH, installSSHFile } from '../../cli/ssh_commands.js';
+import { connectSSH, installSSHFile, remoteSshPath } from '../../cli/ssh_commands.js';
 import { decrypt, generateSalt } from  '../../util/crypto_util.js';
 import { getBastionPublicKey } from './keys.js';
 
@@ -25,7 +25,11 @@ router.post('/', requireAuth, async (req, res) => {
   const { hostname, user, address, port } = req.body;
   
   try {
-    await addHost({ hostname, user, address, port: port || 22 });
+    const result = await addHost({ hostname, user, address, port: port || 22 });
+    if (!result.success) {
+      logVerbose(`Ajout hôte refusé : ${result.message}`);
+      return res.status(409).send(result.message);
+    }
     logVerbose(`Hôte ajouté : ${hostname} (${user}@${address}:${port || 22})`);
     res.send('Hôte ajouté avec succès');
   } catch (err) {
@@ -93,17 +97,26 @@ router.delete('/:id', requireAuth, async (req, res) => {
 
 // ROUTE Connexion SSH
 router.post('/connect', requireAuth, async (req, res) => {
-  const { id, host, port, username } = req.body;
-  const sshPort = port ? Number(port) : 22;
-  
+  const { id } = req.body;
+  let tmpFilePath;
+
   try {
+    if (!id) {
+      return res.status(400).send('id hôte requis');
+    }
+
+    const hostInfo = await getHostInfo(id);
+    const host = hostInfo.address;
+    const username = hostInfo.user;
+    const sshPort = hostInfo.port ? Number(hostInfo.port) : 22;
+
     const privateKey = await getPrivateKey();
     const conn = await connectSSH({ host, port: sshPort, username, privateKey });
     logVerbose(`🔐 Connexion SSH établie à ${username}@${host}:${sshPort}`);
-    
+
     const scriptExists = await checkRemoteScriptPresence(conn, username);
     conn.end();
-    
+
     if (!scriptExists) {
       logVerbose(`📦 Script manquant, installation sur ${host}...`);
       const localScriptPath = path.resolve('src', 'scripts', 'update_keys.sh');
@@ -120,20 +133,18 @@ router.post('/connect', requireAuth, async (req, res) => {
     } else {
       logVerbose(`✅ Script déjà présent sur ${host}`);
     }
-    
-    
-    // Récupère la liste des publicKeys à maj
-    const publicKeys = id ? await getPublicKeysByHostId(Number(id)) : [];
+
+    const publicKeys = await getPublicKeysByHostId(Number(id));
     const bastionPublicKey = (await getBastionPublicKey()).publicKey;
     const publicKeysTrimmed = publicKeys.map(k => k.trim());
     const bastionPublicKeyTrimmed = bastionPublicKey.trim();
     const allKeys = [bastionPublicKeyTrimmed, ...publicKeysTrimmed].join('\n') + '\n';
-    
+
     const randomSalt = generateSalt();
     const tmpFilename = `authorized_keys.theosusan-pki.${randomSalt}`;
-    const tmpFilePath = path.join('/tmp', tmpFilename);
+    tmpFilePath = path.join('/tmp', tmpFilename);
     fs.writeFileSync(tmpFilePath, allKeys, { encoding: 'utf8' });
-    
+
     await installSSHFile({
       host,
       port: sshPort,
@@ -144,26 +155,26 @@ router.post('/connect', requireAuth, async (req, res) => {
       chmodMode: '600'
     });
     logVerbose(`📁 Fichier temporaire transféré sur ${host}`);
-    
+
     const { code, output } = await runRemoteUpdateScript({ host, port: sshPort, username, privateKey });
-    
+
     if (code === 0) {
       logVerbose(`✅ Script update exécuté avec succès sur ${host}`);
-      
-      if (id) {
-        await db('hosts').where({ id }).update({ lastsync: db.fn.now() });
-        logVerbose(`⏱️  Mise à jour de lastsync pour hôte id=${id}`);
-      }
-      
+      await db('hosts').where({ id }).update({ lastsync: db.fn.now() });
+      logVerbose(`⏱️  Mise à jour de lastsync pour hôte id=${id}`);
       res.send(`✅ Connexion SSH et update OK sur ${host}\n\n${output}`);
     } else {
       logError(`❌ Script update a échoué (code ${code}) sur ${host} :\n${output}`);
       res.status(500).send(`Update terminé avec erreur (code ${code})\n\n${output}`);
     }
-    
+
   } catch (err) {
     logError(`❌ Erreur dans POST /connect :`, err);
     res.status(500).send(`Erreur de connexion ou d’exécution SSH : ${err.message}`);
+  } finally {
+    if (tmpFilePath) {
+      try { fs.unlinkSync(tmpFilePath); } catch { /* ignore */ }
+    }
   }
 });
 
@@ -172,7 +183,7 @@ router.post('/connect', requireAuth, async (req, res) => {
 // FONCTIONS
 
 async function checkRemoteScriptPresence(conn, username) {
-  const remotePath = `/home/${username}/.ssh/update_keys.sh`;
+  const remotePath = remoteSshPath(username, 'update_keys.sh');
   const checkCmd = `[ -f "${remotePath}" ] && echo "EXISTS" || echo "MISSING"`;
   
   return new Promise((resolve, reject) => {
@@ -188,10 +199,8 @@ async function checkRemoteScriptPresence(conn, username) {
 }
 
 async function runRemoteUpdateScript({ host, port, username, privateKey }) {
-  const remotePath = username === "root"
-  ? "/root/.ssh/update_keys.sh"
-  : `/home/${username}/.ssh/update_keys.sh`;
-  const command = `${remotePath} update ${username}`;
+  const remotePath = remoteSshPath(username, 'update_keys.sh');
+  const command = `"${remotePath}" update ${username}`;
   const conn = await connectSSH({ host, port, username, privateKey });
   
   return new Promise((resolve, reject) => {
@@ -241,7 +250,7 @@ async function attemptSSHConnection({ host, port, username, privateKey }) {
 
 function checkUninstallScript(conn, username) {
   return new Promise((resolve, reject) => {
-    const remotePath = `/home/${username}/.ssh/update_keys.sh`;
+    const remotePath = remoteSshPath(username, 'update_keys.sh');
     const checkCmd = `[ -f "${remotePath}" ] && echo "EXISTS" || echo "MISSING"`;
     
     conn.exec(checkCmd, (err, stream) => {
@@ -257,8 +266,8 @@ function checkUninstallScript(conn, username) {
 
 function runUninstallScript(conn, username) {
   return new Promise((resolve) => {
-    const remotePath = `/home/${username}/.ssh/update_keys.sh`;
-    const uninstallCmd = `${remotePath} uninstall ${username}`;
+    const remotePath = remoteSshPath(username, 'update_keys.sh');
+    const uninstallCmd = `"${remotePath}" uninstall ${username}`;
     
     conn.exec(uninstallCmd, (err, stream) => {
       if (err) {

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 required_vars=(DB_HOST DB_NAME DB_USER DB_PASSWORD SECRET_KEY OIDC_CLIENT_ID OIDC_CLIENT_SECRET OIDC_ISSUER_URL)
-optional_vars=(BASE_LOGIN_METHOD LOG_LEVEL)
+optional_vars=(BASE_LOGIN_METHOD LOG_LEVEL OIDC_REDIRECT_URI COOKIE_SECURE)
 
 # Fonction pour ajouter une variable manquante dans .env
 add_var_to_env() {
@@ -13,6 +13,10 @@ add_var_to_env() {
         value=true
     elif [ "$var" == "LOG_LEVEL" ] && [ -z "$value" ]; then
         value=info
+    elif [ "$var" == "OIDC_REDIRECT_URI" ] && [ -z "$value" ]; then
+        value="https://theosusan-pki.theosusan.fr/oidc/callback"
+    elif [ "$var" == "COOKIE_SECURE" ] && [ -z "$value" ]; then
+        value=false
     fi
 
     if [ -z "$value" ]; then
@@ -64,6 +68,8 @@ else
         done
         echo "BASE_LOGIN_METHOD=${BASE_LOGIN_METHOD:-true}"
         echo "LOG_LEVEL=${LOG_LEVEL:-info}"
+        echo "OIDC_REDIRECT_URI=${OIDC_REDIRECT_URI:-https://theosusan-pki.theosusan.fr/oidc/callback}"
+        echo "COOKIE_SECURE=${COOKIE_SECURE:-false}"
     } >> .env
 fi
 

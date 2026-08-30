@@ -15,10 +15,8 @@ router.get('/', requireAuth, async (req, res) => {
 });
 
 router.post('/add', requireAuth, async (req, res) => {
-    let { host_id, key_ids } = req.body;
-  
     try {
-      validateHostIdAndKeys(host_id, key_ids);
+      const { host_id, key_ids } = validateHostIdAndKeys(req.body.host_id, req.body.key_ids);
       await insertRulesTransaction(host_id, key_ids);
       res.send('Associations créées avec succès.');
     } catch (err) {
@@ -162,7 +160,7 @@ router.post('/edit', requireAuth, async (req, res) => {
                         });
                         logVerbose(`Ajout règle: host_id=${host_id}, key_id=${change.key_id}`);
                     } catch (err) {
-                        if (err.code !== 'SQLITE_CONSTRAINT' && err.code !== '23505') {
+                        if (!isDuplicateRuleError(err)) {
                             logError('Erreur SQL inattendue lors de l\'ajout d\'une règle:', err);
                             throw err;
                         } else {
@@ -187,6 +185,13 @@ router.post('/edit', requireAuth, async (req, res) => {
 
 
 //FONCTIONS
+
+function isDuplicateRuleError(err) {
+    return err?.code === 'ER_DUP_ENTRY'
+      || err?.errno === 1062
+      || err?.code === 'SQLITE_CONSTRAINT'
+      || err?.code === '23505';
+}
 
 function validateHostIdAndKeys(host_id, key_ids) {
     host_id = parseInt(host_id, 10);
@@ -215,7 +220,7 @@ function validateHostIdAndKeys(host_id, key_ids) {
           await trx('rules').insert(entry);
           logVerbose(`Insertion rule: host_id=${entry.host_id}, key_id=${entry.key_id}`);
         } catch (err) {
-          if (err.code !== 'SQLITE_CONSTRAINT' && err.code !== '23505') {
+          if (!isDuplicateRuleError(err)) {
             throw err;
           } else {
             logVerbose(`Règle déjà existante ignorée : host_id=${entry.host_id}, key_id=${entry.key_id}`);

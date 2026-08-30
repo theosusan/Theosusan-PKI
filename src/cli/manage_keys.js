@@ -24,37 +24,33 @@ export async function generateKey({
       }
     }
     
-    // Créer dossier temporaire
     const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'sshkey-'));
-    const privateKeyPath = path.join(tmpDir, 'id_ed25519');
+    const keyFilename = type === 'rsa' ? 'id_rsa' : 'id_ed25519';
+    const privateKeyPath = path.join(tmpDir, keyFilename);
     const publicKeyPath = privateKeyPath + '.pub';
-    
-    // Générer clé ssh avec ssh-keygen
-    // -t ed25519, sans passphrase (-N '')
-    await execFileAsync('ssh-keygen', [
-      '-t', type,
-      '-f', privateKeyPath,
-      '-N', '',
-      '-C', comment
-    ]);
-    
-    // Lire les fichiers générés
-    const privateKey = await fs.readFile(privateKeyPath, 'utf8');
-    const publicKey = await fs.readFile(publicKeyPath, 'utf8');
-    
-    // Supprimer les fichiers temporaires
-    await fs.rm(tmpDir, { recursive: true, force: true });
-    
-    // Stocker en base la clé privée encryptée
-    const encryptedPrivateKey = encrypt(privateKey);
-    
-    await db('ssh_keys').insert({
-      name,
-      type,
-      publicKey,
-      privateKey: encryptedPrivateKey,
-      createdAt: db.fn.now()
-    });
+
+    try {
+      await execFileAsync('ssh-keygen', [
+        '-t', type,
+        '-f', privateKeyPath,
+        '-N', '',
+        '-C', comment
+      ]);
+
+      const privateKey = await fs.readFile(privateKeyPath, 'utf8');
+      const publicKey = await fs.readFile(publicKeyPath, 'utf8');
+      const encryptedPrivateKey = encrypt(privateKey);
+
+      await db('ssh_keys').insert({
+        name,
+        type,
+        publicKey,
+        privateKey: encryptedPrivateKey,
+        createdAt: db.fn.now()
+      });
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    }
     
     logVerbose(`✅ Clé '${name}' créée avec succès.`);
     
@@ -73,7 +69,11 @@ export async function deleteKeyById(id) {
     if (!key) {
       return { success: false, message: 'Clé non trouvée.' };
     }
-    
+
+    if (key.name === 'bastion') {
+      return { success: false, message: 'La clé bastion ne peut pas être supprimée.' };
+    }
+
     // Supprimer la clé
     await db('ssh_keys').where({ id }).del();
     

@@ -165,12 +165,7 @@
         const response = await fetch('/hosts/connect', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            id,
-            host: address,
-            port: Number(port),
-            username: user,
-          }),
+          body: JSON.stringify({ id }),
         });
         
         const text = await response.text();
