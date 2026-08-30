@@ -78,6 +78,7 @@ router.post(
 router.get(
     '/hosts',
     requireAuth,
+    rulesReadLimiter,
     async (req, res) => {
         try {
             logVerbose(
