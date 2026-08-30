@@ -31,7 +31,7 @@ const rulesReadLimiter = rateLimit({
         'Trop de requêtes de lecture sur les règles. Veuillez réessayer plus tard.'
 });
 
-router.get('/', requireAuth, async (req, res) => {
+router.get('/', requireAuth, rulesReadLimiter, async (req, res) => {
     logVerbose('GET /rules - Envoi du fichier rules.html');
 
     res.sendFile(
