@@ -115,12 +115,16 @@
           const keys = await response.json();
           
           const rows = keys.map(key => {
+            const safeId = JSON.stringify(key.id);
+            const safeName = JSON.stringify(key.name);
+            const safePublicKey = JSON.stringify(key.publicKey);
+
             const btnGroup = `<div class="d-flex flex-wrap gap-2">
-                              <button class="btn btn-sm btn-info" onclick="showPrivate('${key.id}', '${key.name.replace(/'/g, "\\'")}')">Afficher</button>
+                              <button class="btn btn-sm btn-info" onclick="showPrivate(${safeId}, ${safeName})">Afficher</button>
                               <button class="btn btn-sm btn-success" onclick="window.open('/keys/download/${key.id}', '_blank')">Télécharger</button>
                               </div>`;
-            const btnShowPublic = `<button class="btn btn-sm btn-primary" onclick="showPublic(\`${key.publicKey}\`, '${key.name.replace(/'/g, "\\'")}')">Afficher</button>`;
-            const btnDelete = `<button class="btn btn-sm btn-danger" onclick="deleteKey('${key.id}', '${key.name}')">Supprimer</button>`;
+            const btnShowPublic = `<button class="btn btn-sm btn-primary" onclick="showPublic(${safePublicKey}, ${safeName})">Afficher</button>`;
+            const btnDelete = `<button class="btn btn-sm btn-danger" onclick="deleteKey(${safeId}, ${safeName})">Supprimer</button>`;
             
             
             return [key.name, btnGroup, btnShowPublic, btnDelete];
