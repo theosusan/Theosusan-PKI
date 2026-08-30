@@ -52,10 +52,26 @@ const privateKeyLimiter = rateLimit({
 
 
 /*
+ * Rate limiting pour la page principale des clés.
+ *
+ * Cette route effectue un accès disque via sendFile().
+ * Maximum 60 requêtes par IP toutes les 15 minutes.
+ */
+const keysPageLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 60,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: {
+        error: 'Trop de requêtes. Veuillez réessayer plus tard.'
+    }
+});
+
+/*
  * PAGE PRINCIPALE
  */
 
-router.get('/', requireAuth, async (req, res) => {
+router.get('/', requireAuth, keysPageLimiter, async (req, res) => {
 
     res.sendFile(
         path.join(__dirname, '../public/keys.html')
