@@ -22,6 +22,15 @@ const rulesWriteLimiter = rateLimit({
     }
 });
 
+const rulesReadLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 100,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message:
+        'Trop de requêtes de lecture sur les règles. Veuillez réessayer plus tard.'
+});
+
 router.get('/', requireAuth, async (req, res) => {
     logVerbose('GET /rules - Envoi du fichier rules.html');
 
@@ -130,6 +139,7 @@ router.get(
 router.get(
     '/list',
     requireAuth,
+    rulesReadLimiter,
     async (req, res) => {
         try {
             logVerbose(
