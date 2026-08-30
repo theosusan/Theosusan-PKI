@@ -5,7 +5,8 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "start": "node src/index.js"
+    "start": "node src/index.js",
+    "lint": "eslint ."
   },
   "keywords": [],
   "author": "",
@@ -21,5 +22,9 @@
     "mysql2": "^3.24.2",
     "openid-client": "^6.8.7",
     "ssh2": "^1.17.0"
+  },
+  "devDependencies": {
+    "eslint": "^10.9.1",
+    "globals": "^17.11.0"
   }
 }

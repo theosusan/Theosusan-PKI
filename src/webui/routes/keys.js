@@ -2,11 +2,13 @@ import express from 'express';
 import path from 'path';
 import db from '../../db/db.js';
 import { fileURLToPath } from 'url';
-import { generateKey } from '../../cli/manage_keys.js';
+import {
+  deleteKeyById,
+  generateKey
+} from '../../cli/manage_keys.js';
 import { requireAuth } from '../server.js';
 import { decrypt } from '../../util/crypto_util.js';
 import { logError, logVerbose } from '../../util/log_helper.js';
-import { deleteKeyById } from '../../cli/manage_keys.js';
 import { rateLimit } from 'express-rate-limit';
 
 const router = express.Router();
