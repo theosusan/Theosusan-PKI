@@ -1,111 +1,127 @@
 import express from 'express';
-import path from 'path';
 import db from '../../db/db.js';
-import { fileURLToPath } from 'url';
 import { requireAuth } from '../server.js';
-import { logError, logVerbose } from '../../util/log_helper.js';
+import {
+    logError,
+    logVerbose
+} from '../../util/log_helper.js';
 import { rateLimit } from 'express-rate-limit';
 
 const router = express.Router();
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// ============================================================
+// RATE LIMITING
+// ============================================================
 
-
-/*
- * Rate limiting pour les opérations de modification
- * des hôtes.
- *
- * Maximum 20 requêtes par IP toutes les 15 minutes.
- */
-const hostWriteLimiter = rateLimit({
+// Lecture de la liste des hôtes.
+const hostsReadLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    limit: 20,
+    limit: 100,
     standardHeaders: true,
     legacyHeaders: false,
     message: {
-        error: 'Trop de requêtes. Veuillez réessayer plus tard.'
+        error:
+            'Trop de requêtes. Veuillez réessayer plus tard.'
     }
 });
 
-
-/*
- * Rate limiting pour les opérations de lecture.
- *
- * Permet d'éviter qu'un endpoint ne soit utilisé
- * abusivement tout en conservant une limite suffisamment
- * élevée pour une utilisation normale de l'interface.
- */
-const hostReadLimiter = rateLimit({
+// Création / modification / suppression d'un hôte.
+const hostsWriteLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    limit: 300,
+    limit: 30,
     standardHeaders: true,
     legacyHeaders: false,
     message: {
-        error: 'Trop de requêtes. Veuillez réessayer plus tard.'
+        error:
+            'Trop de requêtes. Veuillez réessayer plus tard.'
     }
 });
 
+// ============================================================
+// VALIDATION
+// ============================================================
 
-/*
- * PAGE PRINCIPALE
- */
+function isValidId(id) {
+    return /^\d+$/.test(String(id));
+}
+
+function isValidString(value, maxLength = 255) {
+    return (
+        typeof value === 'string' &&
+        value.trim().length > 0 &&
+        value.trim().length <= maxLength
+    );
+}
+
+function isValidPort(port) {
+    const numericPort = Number(port);
+
+    return (
+        Number.isInteger(numericPort) &&
+        numericPort >= 1 &&
+        numericPort <= 65535
+    );
+}
+
+// ============================================================
+// PAGE PRINCIPALE
+// ============================================================
 
 router.get(
     '/',
     requireAuth,
-    hostReadLimiter,
+    hostsReadLimiter,
     async (req, res) => {
+        try {
+            res.sendFile(
+                new URL(
+                    '../public/hosts.html',
+                    import.meta.url
+                ).pathname
+            );
+        } catch (err) {
+            logError(
+                '❌ Erreur lors du chargement de la page des hôtes :',
+                err
+            );
 
-        logVerbose(
-            'GET /hosts - Envoi du fichier hosts.html'
-        );
-
-        res.sendFile(
-            path.join(__dirname, '../public/hosts.html')
-        );
-
+            res
+                .status(500)
+                .send('Erreur serveur');
+        }
     }
 );
 
-
-/*
- * LISTE DES HÔTES
- */
+// ============================================================
+// LISTE DES HÔTES
+// ============================================================
 
 router.get(
     '/list',
     requireAuth,
-    hostReadLimiter,
+    hostsReadLimiter,
     async (req, res) => {
-
         try {
+            const rows = await db('hosts')
+                .select(
+                    'id',
+                    'user',
+                    'hostname',
+                    'address',
+                    'port',
+                    'lastsync'
+                )
+                .orderBy(
+                    'hostname',
+                    'asc'
+                );
 
             logVerbose(
-                'GET /hosts/list - Récupération des hôtes'
-            );
-
-            const rows =
-                await db('hosts')
-                    .select(
-                        'id',
-                        'hostname',
-                        'username',
-                        'port'
-                    )
-                    .orderBy(
-                        'hostname',
-                        'asc'
-                    );
-
-            logVerbose(
-                `GET /hosts/list - ${rows.length} hôtes récupérés`
+                `Liste des hôtes récupérée, ${rows.length} hôtes trouvés`
             );
 
             res.json(rows);
-
         } catch (err) {
-
             logError(
                 '❌ Erreur lors de la récupération des hôtes :',
                 err
@@ -116,568 +132,321 @@ router.get(
                 .send(
                     'Erreur lors de la récupération des hôtes'
                 );
-
         }
-
     }
 );
 
+// ============================================================
+// RÉCUPÉRATION D'UN HÔTE
+// ============================================================
 
-/*
- * AJOUT D'UN HÔTE
- */
+router.get(
+    '/:id',
+    requireAuth,
+    hostsReadLimiter,
+    async (req, res) => {
+        const { id } = req.params;
+
+        if (!isValidId(id)) {
+            return res
+                .status(400)
+                .json({
+                    error: 'Identifiant d’hôte invalide'
+                });
+        }
+
+        try {
+            const row = await db('hosts')
+                .select(
+                    'id',
+                    'user',
+                    'hostname',
+                    'address',
+                    'port',
+                    'lastsync'
+                )
+                .where('id', id)
+                .first();
+
+            if (!row) {
+                return res
+                    .status(404)
+                    .json({
+                        error: 'Hôte introuvable'
+                    });
+            }
+
+            res.json(row);
+        } catch (err) {
+            logError(
+                `❌ Erreur lors de la récupération de l’hôte id=${id} :`,
+                err
+            );
+
+            res
+                .status(500)
+                .json({
+                    error: 'Erreur serveur'
+                });
+        }
+    }
+);
+
+// ============================================================
+// AJOUT D'UN HÔTE
+// ============================================================
 
 router.post(
     '/',
     requireAuth,
-    hostWriteLimiter,
+    hostsWriteLimiter,
     async (req, res) => {
+        const {
+            user,
+            hostname,
+            address,
+            port
+        } = req.body;
+
+        if (
+            !isValidString(user) ||
+            !isValidString(hostname) ||
+            !isValidString(address)
+        ) {
+            return res
+                .status(400)
+                .json({
+                    error:
+                        'Utilisateur, nom d’hôte et adresse sont requis'
+                });
+        }
+
+        if (!isValidPort(port)) {
+            return res
+                .status(400)
+                .json({
+                    error:
+                        'Le port doit être compris entre 1 et 65535'
+                });
+        }
 
         try {
-
-            let {
-                hostname,
-                username,
-                port
-            } = req.body;
-
-
-            /*
-             * Validation du hostname.
-             */
-
-            if (
-                typeof hostname !== 'string' ||
-                !hostname.trim()
-            ) {
-
-                return res
-                    .status(400)
-                    .send(
-                        'Nom d’hôte requis.'
-                    );
-
-            }
-
-
-            hostname =
-                hostname.trim();
-
-
-            /*
-             * Limite de taille du hostname.
-             */
-
-            if (
-                hostname.length > 253
-            ) {
-
-                return res
-                    .status(400)
-                    .send(
-                        'Nom d’hôte trop long.'
-                    );
-
-            }
-
-
-            /*
-             * Validation du username.
-             */
-
-            if (
-                typeof username !== 'string' ||
-                !username.trim()
-            ) {
-
-                return res
-                    .status(400)
-                    .send(
-                        'Nom d’utilisateur requis.'
-                    );
-
-            }
-
-
-            username =
-                username.trim();
-
-
-            /*
-             * Limite de taille du username.
-             */
-
-            if (
-                username.length > 100
-            ) {
-
-                return res
-                    .status(400)
-                    .send(
-                        'Nom d’utilisateur trop long.'
-                    );
-
-            }
-
-
-            /*
-             * Validation du port.
-             */
-
-            port =
-                parseInt(
-                    port,
-                    10
-                );
-
-
-            if (
-                !Number.isInteger(port) ||
-                port < 1 ||
-                port > 65535
-            ) {
-
-                return res
-                    .status(400)
-                    .send(
-                        'Port invalide. Le port doit être compris entre 1 et 65535.'
-                    );
-
-            }
-
-
-            /*
-             * Vérification de l'existence de l'hôte.
-             */
-
-            const existingHost =
-                await db('hosts')
-                    .where(
-                        'hostname',
-                        hostname
-                    )
-                    .first();
-
+            const existingHost = await db('hosts')
+                .where({
+                    hostname: hostname.trim()
+                })
+                .first();
 
             if (existingHost) {
-
-                logVerbose(
-                    `POST /hosts - Hôte déjà existant : ${hostname}`
-                );
-
                 return res
                     .status(409)
-                    .send(
-                        'Cet hôte existe déjà.'
-                    );
-
+                    .json({
+                        error:
+                            'Un hôte avec ce nom existe déjà'
+                    });
             }
 
-
-            /*
-             * Insertion.
-             */
-
-            const [id] =
-                await db('hosts')
-                    .insert({
-                        hostname,
-                        username,
-                        port
-                    });
-
+            const [id] = await db('hosts')
+                .insert({
+                    user: user.trim(),
+                    hostname: hostname.trim(),
+                    address: address.trim(),
+                    port: Number(port)
+                });
 
             logVerbose(
-                `POST /hosts - Hôte créé : id=${id}, hostname=${hostname}`
+                `✅ Hôte "${hostname.trim()}" ajouté avec succès`
             );
-
 
             res
                 .status(201)
                 .json({
-                    success: true,
-                    id,
-                    hostname,
-                    username,
-                    port
+                    message:
+                        'Hôte ajouté avec succès',
+                    id
                 });
-
         } catch (err) {
-
             logError(
-                '❌ Erreur lors de la création de l’hôte :',
+                '❌ Erreur lors de l’ajout de l’hôte :',
                 err
             );
 
             res
                 .status(500)
-                .send(
-                    'Erreur lors de la création de l’hôte'
-                );
-
+                .json({
+                    error:
+                        'Erreur lors de l’ajout de l’hôte'
+                });
         }
-
     }
 );
 
-
-/*
- * MODIFICATION D'UN HÔTE
- */
+// ============================================================
+// MODIFICATION D'UN HÔTE
+// ============================================================
 
 router.put(
     '/:id',
     requireAuth,
-    hostWriteLimiter,
+    hostsWriteLimiter,
     async (req, res) => {
+        const { id } = req.params;
+
+        if (!isValidId(id)) {
+            return res
+                .status(400)
+                .json({
+                    error: 'Identifiant d’hôte invalide'
+                });
+        }
+
+        const {
+            user,
+            hostname,
+            address,
+            port
+        } = req.body;
+
+        if (
+            !isValidString(user) ||
+            !isValidString(hostname) ||
+            !isValidString(address)
+        ) {
+            return res
+                .status(400)
+                .json({
+                    error:
+                        'Utilisateur, nom d’hôte et adresse sont requis'
+                });
+        }
+
+        if (!isValidPort(port)) {
+            return res
+                .status(400)
+                .json({
+                    error:
+                        'Le port doit être compris entre 1 et 65535'
+                });
+        }
 
         try {
-
-            const id =
-                parseInt(
-                    req.params.id,
-                    10
-                );
-
-
-            if (
-                !Number.isInteger(id) ||
-                id <= 0
-            ) {
-
-                return res
-                    .status(400)
-                    .send(
-                        'ID d’hôte invalide.'
-                    );
-
-            }
-
-
-            let {
-                hostname,
-                username,
-                port
-            } = req.body;
-
-
-            /*
-             * Validation du hostname.
-             */
-
-            if (
-                typeof hostname !== 'string' ||
-                !hostname.trim()
-            ) {
-
-                return res
-                    .status(400)
-                    .send(
-                        'Nom d’hôte requis.'
-                    );
-
-            }
-
-
-            hostname =
-                hostname.trim();
-
-
-            if (
-                hostname.length > 253
-            ) {
-
-                return res
-                    .status(400)
-                    .send(
-                        'Nom d’hôte trop long.'
-                    );
-
-            }
-
-
-            /*
-             * Validation du username.
-             */
-
-            if (
-                typeof username !== 'string' ||
-                !username.trim()
-            ) {
-
-                return res
-                    .status(400)
-                    .send(
-                        'Nom d’utilisateur requis.'
-                    );
-
-            }
-
-
-            username =
-                username.trim();
-
-
-            if (
-                username.length > 100
-            ) {
-
-                return res
-                    .status(400)
-                    .send(
-                        'Nom d’utilisateur trop long.'
-                    );
-
-            }
-
-
-            /*
-             * Validation du port.
-             */
-
-            port =
-                parseInt(
-                    port,
-                    10
-                );
-
-
-            if (
-                !Number.isInteger(port) ||
-                port < 1 ||
-                port > 65535
-            ) {
-
-                return res
-                    .status(400)
-                    .send(
-                        'Port invalide. Le port doit être compris entre 1 et 65535.'
-                    );
-
-            }
-
-
-            /*
-             * Vérification de l'existence de l'hôte.
-             */
-
-            const existingHost =
-                await db('hosts')
-                    .where(
-                        'id',
-                        id
-                    )
-                    .first();
-
+            const existingHost = await db('hosts')
+                .where('id', id)
+                .first();
 
             if (!existingHost) {
-
                 return res
                     .status(404)
-                    .send(
-                        'Hôte introuvable.'
-                    );
-
+                    .json({
+                        error: 'Hôte introuvable'
+                    });
             }
 
-
-            /*
-             * Vérification des doublons.
-             */
-
-            const duplicateHost =
-                await db('hosts')
-                    .where(
-                        'hostname',
-                        hostname
-                    )
-                    .whereNot(
-                        'id',
-                        id
-                    )
-                    .first();
-
+            const duplicateHost = await db('hosts')
+                .where('hostname', hostname.trim())
+                .whereNot('id', id)
+                .first();
 
             if (duplicateHost) {
-
                 return res
                     .status(409)
-                    .send(
-                        'Un autre hôte utilise déjà ce nom.'
-                    );
-
+                    .json({
+                        error:
+                            'Un autre hôte avec ce nom existe déjà'
+                    });
             }
 
-
-            /*
-             * Mise à jour.
-             */
-
             await db('hosts')
-                .where(
-                    'id',
-                    id
-                )
+                .where('id', id)
                 .update({
-                    hostname,
-                    username,
-                    port
+                    user: user.trim(),
+                    hostname: hostname.trim(),
+                    address: address.trim(),
+                    port: Number(port)
                 });
 
-
             logVerbose(
-                `PUT /hosts/${id} - Hôte modifié avec succès`
+                `✅ Hôte id=${id} modifié avec succès`
             );
 
-
             res.json({
-                success: true,
-                id,
-                hostname,
-                username,
-                port
+                message:
+                    'Hôte modifié avec succès'
             });
-
         } catch (err) {
-
             logError(
-                '❌ Erreur lors de la modification de l’hôte :',
+                `❌ Erreur lors de la modification de l’hôte id=${id} :`,
                 err
             );
 
             res
                 .status(500)
-                .send(
-                    'Erreur lors de la modification de l’hôte'
-                );
-
+                .json({
+                    error:
+                        'Erreur lors de la modification de l’hôte'
+                });
         }
-
     }
 );
 
-
-/*
- * SUPPRESSION D'UN HÔTE
- */
+// ============================================================
+// SUPPRESSION D'UN HÔTE
+// ============================================================
 
 router.delete(
     '/:id',
     requireAuth,
-    hostWriteLimiter,
+    hostsWriteLimiter,
     async (req, res) => {
+        const { id } = req.params;
+
+        if (!isValidId(id)) {
+            return res
+                .status(400)
+                .json({
+                    error: 'Identifiant d’hôte invalide'
+                });
+        }
 
         try {
+            const existingHost = await db('hosts')
+                .where('id', id)
+                .first();
 
-            const id =
-                parseInt(
-                    req.params.id,
-                    10
-                );
-
-
-            if (
-                !Number.isInteger(id) ||
-                id <= 0
-            ) {
-
-                return res
-                    .status(400)
-                    .send(
-                        'ID d’hôte invalide.'
-                    );
-
-            }
-
-
-            /*
-             * Vérification de l'existence.
-             */
-
-            const host =
-                await db('hosts')
-                    .where(
-                        'id',
-                        id
-                    )
-                    .first();
-
-
-            if (!host) {
-
+            if (!existingHost) {
                 return res
                     .status(404)
-                    .send(
-                        'Hôte introuvable.'
-                    );
-
+                    .json({
+                        error: 'Hôte introuvable'
+                    });
             }
 
-
-            /*
-             * Suppression des règles associées.
-             */
-
-            await db('rules')
-                .where(
-                    'host_id',
-                    id
-                )
-                .del();
-
-
-            /*
-             * Suppression de l'hôte.
-             */
-
-            const deleted =
-                await db('hosts')
-                    .where(
-                        'id',
-                        id
-                    )
-                    .del();
-
-
-            if (!deleted) {
-
-                return res
-                    .status(404)
-                    .send(
-                        'Hôte introuvable.'
-                    );
-
-            }
-
+            await db('hosts')
+                .where('id', id)
+                .delete();
 
             logVerbose(
-                `DELETE /hosts/${id} - Hôte supprimé avec succès`
+                `✅ Hôte id=${id} supprimé avec succès`
             );
 
-
             res.json({
-                success: true,
                 message:
-                    'Hôte supprimé avec succès.'
+                    'Hôte supprimé avec succès'
             });
-
         } catch (err) {
-
             logError(
-                '❌ Erreur lors de la suppression de l’hôte :',
+                `❌ Erreur lors de la suppression de l’hôte id=${id} :`,
                 err
             );
 
             res
                 .status(500)
-                .send(
-                    'Erreur lors de la suppression de l’hôte'
-                );
-
+                .json({
+                    error:
+                        'Erreur lors de la suppression de l’hôte'
+                });
         }
-
     }
 );
-
 
 export default router;
