@@ -13,18 +13,18 @@
   "license": "ISC",
   "dependencies": {
     "bcrypt": "^6.0.0",
-    "dotenv": "^17.4.2",
+    "dotenv": "^18.0.1",
     "ejs": "^6.0.1",
     "express": "^5.2.1",
     "express-rate-limit": "^8.7.0",
     "express-session": "^1.19.0",
     "knex": "^3.3.0",
-    "mysql2": "^3.24.2",
-    "openid-client": "^6.8.7",
+    "mysql2": "^3.24.4",
+    "openid-client": "^6.8.8",
     "ssh2": "^1.17.0"
   },
   "devDependencies": {
-    "eslint": "^10.9.1",
-    "globals": "^17.11.0"
+    "eslint": "^10.11.0",
+    "globals": "^17.12.0"
   }
 }
